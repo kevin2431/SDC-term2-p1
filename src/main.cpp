@@ -127,6 +127,7 @@ int main()
 			}
 			weight_sum += particles[i].weight;
 		  }
+      //这里选取位置最接近的粒子最为显示的粒子，通过socket传递数据
 		  cout << "highest w " << highest_weight << endl;
 		  cout << "average w " << weight_sum/num_particles << endl;
 
