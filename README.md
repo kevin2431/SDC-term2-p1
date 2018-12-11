@@ -1,143 +1,54 @@
-# Overview
-This repository contains all the code needed to complete the final project for the Localization course in Udacity's Self-Driving Car Nanodegree.
+# Markov filter && Particle filter
 
-#### Submission
-All you will submit is your completed version of `particle_filter.cpp`, which is located in the `src` directory. You should probably do a `git pull` before submitting to verify that your project passes the most up-to-date version of the grading code (there are some parameters in `src/main.cpp` which govern the requirements on accuracy and run time.)
+**最为一般的模型，其他模型均有此衍生**
 
-## Project Introduction
-Your robot has been kidnapped and transported to a new location! Luckily it has a map of this location, a (noisy) GPS estimate of its initial location, and lots of (noisy) sensor and control data.
+_下文图片来源udacity_
 
-In this project you will implement a 2 dimensional particle filter in C++. Your particle filter will be given a map and some initial localization information (analogous to what a GPS would provide). At each time step your filter will also get observation and control data.
+各个字母代表含义如下：
+1. $x_{t}$ :表示车辆或者自身的状态，是一个向量
+2. $z_{1:t}$ :1-t时间的观测量
+3. $u_{1:t}$ :1-t时间内的控制量，速度，角速度等(yaw_rate)
+4. $m$ :地图信息，若地图信息不确定，则为SLAM问题，需要同时定位和建图
 
-## Running the Code
-This project involves the Term 2 Simulator which can be downloaded [here](https://github.com/udacity/self-driving-car-sim/releases)
+## 1. 最一般的定位模型
+根据贝叶斯公式$P\left ( a|b \right )=\frac{P\left ( b|a \right )P\left ( a \right )}{P\left ( b \right )}$ ，有如下部分：
+1. $P\left ( a \right )$，运动模型，prior
+2. $P\left ( b|a \right )$，观测模型，likelihood
+3. $P\left ( b \right )$ ，用来归一化项，可以根据左右a下观测到的b计算
+4. $P\left ( a|b \right )$，后验概率，修正的位置
 
-This repository includes two files that can be used to set up and install uWebSocketIO for either Linux or Mac systems. For windows you can use either Docker, VMware, or even Windows 10 Bash on Ubuntu to install uWebSocketIO.
+更具体的说就是：
+1. $P(location∣observation)$: This is $P(a|b)$, the normalized probability of a position given an observation (posterior).
+2. $P(observation∣location)$: This is $P(b|a)$, the probability of an observation given a position (likelihood)
+3. $P(location)P(location)$: This is $P(a)$, the prior probability of a position
+4. $P(observation)$: This is $P(b)$, the total probability of an observation
 
-Once the install for uWebSocketIO is complete, the main program can be built and ran by doing the following from the project top directory.
+贝叶斯滤波的形式如下图：
 
-1. mkdir build
-2. cd build
-3. cmake ..
-4. make
-5. ./particle_filter
+![Alt text](./photo/1.jpg "optional title")
+其中的运动模型是前一时刻所有可能的状态运动到当前状态$x_{t}$的概率和，利用全概率公式求解，发现会产生一个递归问题。
+> 这里的积分其实是卷积的一种形式，需要阅读概率机器人
 
-Alternatively some scripts have been included to streamline this process, these can be leveraged by executing the following in the top directory of the project:
+![Alt text](./photo/4.jpg "optional title")
+![Alt text](./photo/5.jpg "optional title")
+如上图，便可以在运动模型中推导出马尔科夫假设，当前状态只和前一时刻状态以及在这时刻的运动信息有关，和之前的状态独立。因为之前的信息已经在计算上一时刻状态时使用。
 
-1. ./clean.sh
-2. ./build.sh
-3. ./run.sh
+## 2. Markov Assumption
+更一般地，根据上面的事实，列出马尔科夫假设：
 
-Tips for setting up your environment can be found [here](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/0949fca6-b379-42af-a919-ee50aa304e6a/lessons/f758c44c-5e40-4e01-93b5-1a82aa4e044f/concepts/23d376c7-0195-4276-bdf0-e02f1f3c665d)
+![Alt text](./photo/6.png "optional title")
 
-Note that the programs that need to be written to accomplish the project are src/particle_filter.cpp, and particle_filter.h
+## 3. Observation Model
+根据马尔科夫假设，可以将观测模型也简化。观测信息只和当前状态和地图信息有关。
+![Alt text](./photo/7.jpg "optional title")
 
-The program main.cpp has already been filled out, but feel free to modify it.
+## 4. 整个贝叶斯滤波器
+贝叶斯滤波器是最为一般的模型，再添加限制条件后可简化为卡尔曼滤波，粒子滤波等。
 
-Here is the main protocol that main.cpp uses for uWebSocketIO in communicating with the simulator.
-
-INPUT: values provided by the simulator to the c++ program
-
-// sense noisy position data from the simulator
-
-["sense_x"]
-
-["sense_y"]
-
-["sense_theta"]
-
-// get the previous velocity and yaw rate to predict the particle's transitioned state
-
-["previous_velocity"]
-
-["previous_yawrate"]
-
-// receive noisy observation data from the simulator, in a respective list of x/y values
-
-["sense_observations_x"]
-
-["sense_observations_y"]
-
-
-OUTPUT: values provided by the c++ program to the simulator
-
-// best particle values used for calculating the error evaluation
-
-["best_particle_x"]
-
-["best_particle_y"]
-
-["best_particle_theta"]
-
-//Optional message data used for debugging particle's sensing and associations
-
-// for respective (x,y) sensed positions ID label
-
-["best_particle_associations"]
-
-// for respective (x,y) sensed positions
-
-["best_particle_sense_x"] <= list of sensed x positions
-
-["best_particle_sense_y"] <= list of sensed y positions
-
-
-Your job is to build out the methods in `particle_filter.cpp` until the simulator output says:
-
-```
-Success! Your particle filter passed!
-```
-
-# Implementing the Particle Filter
-The directory structure of this repository is as follows:
-
-```
-root
-|   build.sh
-|   clean.sh
-|   CMakeLists.txt
-|   README.md
-|   run.sh
-|
-|___data
-|   |   
-|   |   map_data.txt
-|   
-|   
-|___src
-    |   helper_functions.h
-    |   main.cpp
-    |   map.h
-    |   particle_filter.cpp
-    |   particle_filter.h
-```
-
-The only file you should modify is `particle_filter.cpp` in the `src` directory. The file contains the scaffolding of a `ParticleFilter` class and some associated methods. Read through the code, the comments, and the header file `particle_filter.h` to get a sense for what this code is expected to do.
-
-If you are interested, take a look at `src/main.cpp` as well. This file contains the code that will actually be running your particle filter and calling the associated methods.
-
-## Inputs to the Particle Filter
-You can find the inputs to the particle filter in the `data` directory.
-
-#### The Map*
-`map_data.txt` includes the position of landmarks (in meters) on an arbitrary Cartesian coordinate system. Each row has three columns
-1. x position
-2. y position
-3. landmark id
-
-### All other data the simulator provides, such as observations and controls.
-
-> * Map data provided by 3D Mapping Solutions GmbH.
-
-## Success Criteria
-If your particle filter passes the current grading code in the simulator (you can make sure you have the current version at any time by doing a `git pull`), then you should pass!
-
-The things the grading code is looking for are:
-
-
-1. **Accuracy**: your particle filter should localize vehicle position and yaw to within the values specified in the parameters `max_translation_error` and `max_yaw_error` in `src/main.cpp`.
-
-2. **Performance**: your particle filter should complete execution within the time of 100 seconds.
-
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
+模型主要计算三部分：
+1. motion model:卷积，根据运动信息计算状态位置
+2. observation model：基于某个特定位置，观测到不用路标信息，最后概率相乘。
+3. 归一化项$\eta$，在某个位置$x_{t}^{i}$ 观测到$z_{t}$的所有情形，全概率公式
+![Alt text](./photo/8.jpg "optional title")
+整个滤波器的运作方式如下，我们要做的应该就是根据当前接收到的传感器信息，不断地预测和更新信息。
+![Alt text](./photo/9.jpg "optional title")
